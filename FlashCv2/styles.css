@@ -1,0 +1,440 @@
+:root {
+    /* 背景动画渐变 */
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    
+    /* UI 玻璃质感参数 */
+    --glass-bg: rgba(20, 20, 35, 0.4); /* 更深的UI背景 */
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    
+    /* 字体颜色 */
+    --text-main: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.75);
+    --accent: #00f2fe;
+
+    /* 卡片样式 - 优化辨识度与毛玻璃 */
+    /* 正面：深色半透明，高模糊 */
+    --card-front-bg: rgba(20, 20, 30, 0.75); 
+    /* 背面：深蓝色半透明，高模糊 */
+    --card-back-bg: rgba(20, 40, 60, 0.85);
+    
+    --card-border: rgba(255, 255, 255, 0.2);
+    --card-blur: blur(25px); /* 强力磨砂 */
+
+    --slot-width: 600px;
+    --slot-height: 400px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    outline: none;
+}
+
+body {
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: #0f0c29;
+    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #141e30);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    color: var(--text-main);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* ---------------- App 容器 ---------------- */
+.app-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* ---------------- 上传界面 ---------------- */
+#upload-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(20px);
+    z-index: 200;
+    transition: opacity 0.5s ease;
+}
+
+.upload-box {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    padding: 3rem;
+    border-radius: 24px;
+    text-align: center;
+    box-shadow: var(--glass-shadow);
+    transition: transform 0.3s ease;
+}
+
+.upload-box:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent);
+}
+
+.upload-btn {
+    margin-top: 20px;
+    padding: 12px 30px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 50px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
+}
+
+.upload-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.8);
+}
+
+input[type="file"] { display: none; }
+
+/* ---------------- 主界面 ---------------- */
+#main-interface {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+    position: relative;
+}
+
+/* 顶部栏 */
+.top-bar {
+    width: 90%;
+    max-width: 1000px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 25px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    margin-top: 10px;
+    z-index: 100;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.stats { font-size: 1.1rem; font-weight: 300; }
+.stats b { color: var(--accent); font-weight: 600; }
+
+.controls-top { display: flex; gap: 15px; align-items: center; }
+
+.jump-input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--glass-border);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    width: 80px;
+    text-align: center;
+    transition: border 0.3s;
+}
+.jump-input:focus { border-color: var(--accent); }
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+.icon-btn:hover, .icon-btn.active { color: var(--accent); }
+
+/* ---------------- CoverFlow 舞台 ---------------- */
+.stage-container {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* 增加透视深度，让 3D 效果更明显 */
+    perspective: 1500px; 
+    overflow: hidden;
+}
+
+/* 每一个卡槽 */
+.card-slot {
+    position: absolute;
+    width: var(--slot-width);
+    height: var(--slot-height);
+    /* 调整缓动曲线，让移动更顺滑 */
+    transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease, filter 0.6s ease;
+    transform-style: preserve-3d;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- Slot States --- */
+
+/* 中心当前卡片 */
+.card-slot.center {
+    /* 稍微拉近 Z 轴，让它比背景更突出 */
+    transform: translateX(0) translateZ(0px) rotateY(0);
+    z-index: 10;
+    opacity: 1;
+    filter: blur(0) brightness(1.1); /* 稍微提亮 */
+    pointer-events: auto;
+}
+
+/* 左侧预览 */
+.card-slot.left {
+    /* 加大旋转角度和后退距离 */
+    transform: translateX(-65%) translateZ(-300px) rotateY(35deg);
+    z-index: 5;
+    opacity: 0.5;
+    filter: blur(4px) brightness(0.8);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* 右侧预览 */
+.card-slot.right {
+    transform: translateX(65%) translateZ(-300px) rotateY(-35deg);
+    z-index: 5;
+    opacity: 0.5;
+    filter: blur(4px) brightness(0.8);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* 远端隐藏 */
+.card-slot.hidden-left {
+    transform: translateX(-150%) translateZ(-500px) rotateY(60deg);
+    z-index: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.card-slot.hidden-right {
+    transform: translateX(150%) translateZ(-500px) rotateY(-60deg);
+    z-index: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ---------------- 卡片本身（负责翻转） ---------------- */
+.flashcard {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    /* 优化翻转动画：加入一点点的缩放，让翻转有"飞起来"的感觉 */
+    transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    cursor: pointer;
+    border-radius: 24px;
+}
+
+.card-slot.center .flashcard.flipped {
+    /* 翻转时不要只是 rotateY(180deg)，可以加一点 Z 轴位移防止穿模，或者更酷的弧线 */
+    transform: rotateY(180deg);
+}
+
+.card-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 24px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    
+    /* 核心视觉优化：深色、高模糊、描边 */
+    backdrop-filter: var(--card-blur);
+    -webkit-backdrop-filter: var(--card-blur);
+    border: 1px solid var(--card-border);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05);
+    
+    overflow-y: auto;
+}
+
+.card-front {
+    background: var(--card-front-bg);
+    transform: rotateY(0deg); 
+}
+
+.card-back {
+    background: var(--card-back-bg);
+    transform: rotateY(180deg);
+    /* 背面字体稍微加粗一点 */
+    font-weight: 500;
+}
+
+.card-label {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.6;
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+}
+
+.card-content {
+    font-size: 1.8rem;
+    line-height: 1.6;
+    font-weight: 400;
+    /* 关键：保留空格和换行 */
+    white-space: pre-wrap; 
+    width: 100%;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* ---------------- 底部控制 ---------------- */
+.bottom-section {
+    width: 90%;
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    z-index: 100;
+}
+
+.progress-container {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 15px var(--accent);
+}
+
+.key-hints {
+    display: flex;
+    gap: 20px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    background: rgba(0,0,0,0.3);
+    padding: 8px 20px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.key {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.2);
+    font-family: monospace;
+    margin-right: 5px;
+    color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* 滚动条美化 */
+.card-face::-webkit-scrollbar { width: 6px; }
+.card-face::-webkit-scrollbar-track { background: transparent; }
+.card-face::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+.card-face::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    :root {
+        --slot-width: 88vw;
+        --slot-height: 60vh;
+    }
+    .card-content { font-size: 1.3rem; }
+    .key-hints { display: none; }
+    .card-slot.left { transform: translateX(-100%) translateZ(-200px) rotateY(20deg); opacity: 0; }
+    .card-slot.right { transform: translateX(100%) translateZ(-200px) rotateY(-20deg); opacity: 0; }
+}
+
+/* 预设文件样式 */
+.preset-files {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.preset-title {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.preset-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 8px 16px;
+    margin: 0 5px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.preset-btn:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+
+/* 返回主界面按钮 */
+.back-to-main {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    z-index: 300;
+}
+
+.back-to-main:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
