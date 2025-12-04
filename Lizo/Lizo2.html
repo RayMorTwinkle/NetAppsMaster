@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3D 手势交互粒子系统 - 原生版</title>
     
+    <!-- 预加载关键资源 -->
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://aistudiocdn.com">
+    
     <!-- 引入 Tailwind CSS 用于快速构建漂亮的 UI -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -13,11 +18,7 @@
 {
   "imports": {
     "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "three/": "https://aistudiocdn.com/three@^0.181.2/",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
   }
 }
 </script>
@@ -49,7 +50,11 @@
     <!-- 加载遮罩层 -->
     <div id="loader" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black text-cyan-400">
         <div class="text-2xl font-bold tracking-widest animate-pulse mb-4">系统启动中</div>
-        <div class="text-sm text-gray-500">请允许使用摄像头权限 • 首次加载可能需要几秒</div>
+        <div class="w-64 h-2 bg-gray-800 rounded-full mb-2 overflow-hidden">
+            <div id="progress-bar" class="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-300 ease-out" style="width: 0%"></div>
+        </div>
+        <div id="progress-text" class="text-sm text-gray-300 mb-1">加载资源... 0%</div>
+        <div class="text-xs text-gray-500">请允许使用摄像头权限 • 预加载优化中</div>
     </div>
 
     <!-- UI 显隐按钮 -->
@@ -407,13 +412,31 @@
         closeBtn.onclick = () => toggleUI(false);
         toggleBtn.onclick = () => toggleUI(true);
 
-        // --- 5. MediaPipe 手势 ---
+        // --- 5. 加载进度跟踪 ---
         const videoElement = document.getElementById('video-input');
         const statusText = document.getElementById('status-text');
         const statusDot = document.getElementById('status-dot');
         const loader = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
 
         let isLoaded = false;
+        let loadedResources = 0;
+        const totalResources = 5; // Three.js, MediaPipe x3, 系统初始化
+
+        function updateProgress(step) {
+            loadedResources = Math.min(loadedResources + step, totalResources);
+            const progress = Math.round((loadedResources / totalResources) * 100);
+            progressBar.style.width = progress + '%';
+            progressText.textContent = `加载资源... ${progress}%`;
+            
+            if (progress >= 100) {
+                progressText.textContent = '资源加载完成，初始化中...';
+            }
+        }
+
+        // 初始进度更新
+        updateProgress(1); // Three.js 已加载
 
         function onHandResults(results) {
             if(!isLoaded && results.multiHandLandmarks) {
@@ -442,25 +465,45 @@
             }
         }
 
-        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-        hands.onResults(onHandResults);
+        // 异步加载MediaPipe资源并跟踪进度
+        Promise.all([
+            new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+                script.onload = () => {
+                    updateProgress(1); // MediaPipe hands.js 加载完成
+                    resolve();
+                };
+                script.onerror = () => {
+                    updateProgress(1); // 即使失败也标记为完成
+                    console.warn('MediaPipe Hands加载失败，继续其他资源');
+                    resolve();
+                };
+                document.head.appendChild(script);
+            })
+        ]).then(() => {
+            updateProgress(1); // MediaPipe 初始化完成
+            
+            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            hands.onResults(onHandResults);
 
-        const cameraUtils = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({image: videoElement}); },
-            width: 640, height: 480
-        });
-        
-        cameraUtils.start().catch(e => {
-            console.error(e);
-            statusText.innerText = "摄像头启动失败";
-            loader.classList.add('opacity-0'); // 即使失败也移除遮罩以显示错误信息
-            panel.classList.remove('hidden-ui');
+            const cameraUtils = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                width: 640, height: 480
+            });
+            
+            cameraUtils.start().catch(e => {
+                console.error(e);
+                statusText.innerText = "摄像头启动失败";
+                loader.classList.add('opacity-0'); // 即使失败也移除遮罩以显示错误信息
+                panel.classList.remove('hidden-ui');
+            });
         });
 
         // --- 6. 动画循环 ---
