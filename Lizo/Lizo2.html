@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D 手势交互粒子系统 - 原生版</title>
+    
+    <!-- 引入 Tailwind CSS 用于快速构建漂亮的 UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Import Map: 告诉浏览器从哪里加载 Three.js 及其插件 -->
+    <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "three/": "https://aistudiocdn.com/three@^0.181.2/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+
+    <!-- MediaPipe 依赖库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 255, 255, 0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 255, 0.6); }
+        
+        /* 范围滑块样式 */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; }
+        
+        #loader { transition: opacity 0.8s ease-out; }
+        .hidden-ui { opacity: 0; pointer-events: none; }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-black text-white select-none">
+
+    <!-- 加载遮罩层 -->
+    <div id="loader" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black text-cyan-400">
+        <div class="text-2xl font-bold tracking-widest animate-pulse mb-4">系统启动中</div>
+        <div class="text-sm text-gray-500">请允许使用摄像头权限 • 首次加载可能需要几秒</div>
+    </div>
+
+    <!-- UI 显隐按钮 -->
+    <button id="toggle-ui-btn" class="absolute top-4 left-4 z-50 bg-gray-900/80 backdrop-blur-md text-cyan-400 p-3 rounded-full border border-cyan-500/30 hover:bg-cyan-900/40 transition-all shadow-[0_0_15px_rgba(0,255,255,0.3)] hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+
+    <!-- 主控面板 -->
+    <div id="control-panel" class="absolute top-4 left-4 z-50 w-80 max-h-[90vh] overflow-y-auto bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 text-white shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-opacity duration-300 hidden-ui">
+        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+            <h2 class="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                粒子控制台
+            </h2>
+            <button id="close-panel-btn" class="text-gray-400 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7c.44 0 .87-.03 1.28-.09"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+            </button>
+        </div>
+
+        <div class="space-y-5">
+            <!-- 几何形态 -->
+            <div>
+                <h3 class="text-xs uppercase tracking-widest text-gray-400 mb-2">几何形态</h3>
+                <div class="grid grid-cols-4 gap-2" id="shape-grid">
+                    <!-- 按钮将由 JS 生成 -->
+                </div>
+            </div>
+
+            <!-- 色彩模式 -->
+            <div>
+                <h3 class="text-xs uppercase tracking-widest text-gray-400 mb-2">色彩模式</h3>
+                <div class="flex gap-2 p-1 bg-black/20 rounded-lg" id="mode-container">
+                    <button data-mode="Solid" class="mode-btn flex-1 py-1.5 text-xs rounded-md transition-all text-gray-500 hover:text-gray-300">单色</button>
+                    <button data-mode="Gradient" class="mode-btn flex-1 py-1.5 text-xs rounded-md transition-all text-gray-500 hover:text-gray-300">幻彩渐变</button>
+                    <button data-mode="Tricolor" class="mode-btn flex-1 py-1.5 text-xs rounded-md transition-all text-gray-500 hover:text-gray-300">三色混搭</button>
+                </div>
+            </div>
+
+            <!-- 滑块控制 -->
+            <div class="space-y-4">
+                <!-- 粒子数量 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-400">粒子密度</span>
+                        <span id="count-val" class="text-cyan-400 font-mono">20,000</span>
+                    </div>
+                    <input type="range" id="count-slider" min="1000" max="50000" step="1000" value="20000" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400 hover:[&::-webkit-slider-thumb]:scale-125 transition-all">
+                </div>
+
+                <!-- 辉光强度 -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-400">辉光强度</span>
+                        <span id="bloom-val" class="text-cyan-400 font-mono">0.8</span>
+                    </div>
+                    <input type="range" id="bloom-slider" min="0" max="3" step="0.1" value="0.8" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cyan-400 hover:[&::-webkit-slider-thumb]:scale-125 transition-all">
+                </div>
+
+                <!-- 颜色选择 -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-400">基础色调</span>
+                    <div class="relative overflow-hidden w-full max-w-[100px] h-8 rounded-md border border-white/20">
+                        <input type="color" id="color-picker" value="#00ffff" class="absolute -top-2 -left-2 w-[120%] h-[150%] cursor-pointer p-0 border-0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 状态栏 -->
+            <div class="pt-4 border-t border-white/10 flex items-center gap-3">
+                <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_currentColor] transition-colors duration-300"></div>
+                <span id="status-text" class="text-xs text-gray-300 font-mono">摄像头启动中...</span>
+            </div>
+            
+            <div class="text-[10px] text-gray-600 text-center mt-2">
+                捏合拇指与食指缩放 • 鼠标左键拖拽旋转 • 滚轮缩放
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D 容器 -->
+    <div id="canvas-container" class="w-screen h-screen absolute top-0 left-0 z-0 cursor-move"></div>
+    
+    <!-- 隐藏的视频输入源 -->
+    <video id="video-input" class="absolute top-0 left-0 opacity-0 pointer-events-none transform scale-x-[-1]" playsinline></video>
+
+    <!-- 核心逻辑脚本 -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 全局配置 ---
+        const CONFIG = {
+            particleCount: 20000,
+            bloomStrength: 0.8,
+            baseColor: '#00ffff',
+            shape: 'Sphere',
+            colorMode: 'Solid' // 'Solid', 'Gradient', 'Tricolor'
+        };
+
+        const MAX_PARTICLES = 60000;
+        let gestureScale = 1.0;
+        let targetPositions = new Float32Array(MAX_PARTICLES * 3);
+        
+        // --- 1. 图形生成算法 (Constants) ---
+        function getSpherePoint(r) {
+            const u = Math.random();
+            const v = Math.random();
+            const theta = 2 * Math.PI * u;
+            const phi = Math.acos(2 * v - 1);
+            return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi) };
+        }
+
+        const SHAPES = {
+            'Sphere': { label: '星球', func: (i) => {
+                const isRing = Math.random() > 0.7; 
+                if (isRing) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const rad = 3.5 + Math.random() * 2.0; 
+                    return { x: Math.cos(angle) * rad, y: Math.sin(angle) * rad * 0.1, z: Math.sin(angle) * rad };
+                }
+                return getSpherePoint(2.2);
+            }},
+            'Heart': { label: '爱心', func: (i) => {
+                const t = Math.random() * Math.PI * 2;
+                const r = Math.sqrt(Math.random()); 
+                const scale = 0.25 * r;
+                const x = 16 * Math.pow(Math.sin(t), 3);
+                const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                const z = (Math.random() - 0.5) * 5; 
+                return { x: x * scale, y: (y * scale) + 1, z: z * scale * 2 };
+            }},
+            'Helix': { label: '双螺旋', func: (i, count) => {
+                const t = (i / count) * Math.PI * 20;
+                const x = Math.cos(t) * 2.5;
+                const z = Math.sin(t) * 2.5;
+                const y = (i / count - 0.5) * 15;
+                const isStrand2 = i % 2 === 0;
+                return { x: isStrand2 ? x : -x, y: y, z: isStrand2 ? z : -z };
+            }},
+            'Cube': { label: '立方体', func: () => {
+                const s = 4.5;
+                return { x: (Math.random()-0.5)*s, y: (Math.random()-0.5)*s, z: (Math.random()-0.5)*s };
+            }},
+            'Vortex': { label: '漩涡', func: (i, count) => {
+                const angle = i * 0.01;
+                const r = (i / count) * 8;
+                const spiralAngle = angle + r * 3;
+                return { x: Math.cos(spiralAngle)*r, y: (Math.random()-0.5) * (1-r/10)*4, z: Math.sin(spiralAngle)*r };
+            }},
+            'Galaxy': { label: '银河', func: (i, count) => {
+                const arms = 3;
+                const armIndex = i % arms;
+                const radius = Math.random() * 6;
+                const spin = radius * 1.5;
+                const angle = (armIndex / arms) * Math.PI * 2 + spin;
+                const randomOffset = Math.random() - 0.5;
+                return {
+                    x: Math.cos(angle) * radius + randomOffset * 0.5,
+                    y: (Math.random() - 0.5) * (1 - radius/7),
+                    z: Math.sin(angle) * radius + randomOffset * 0.5
+                };
+            }},
+            'Torus': { label: '圆环', func: () => {
+                const u = Math.random() * Math.PI * 2;
+                const v = Math.random() * Math.PI * 2;
+                const R = 3.5; const r = 1.2;
+                return { x: (R + r * Math.cos(v)) * Math.cos(u), y: r * Math.sin(v), z: (R + r * Math.cos(v)) * Math.sin(u) };
+            }},
+            'Wave': { label: '波浪', func: (i, count) => {
+                const gridSize = Math.sqrt(count);
+                const u = (i % gridSize) / gridSize;
+                const v = Math.floor(i / gridSize) / gridSize;
+                const x = (u - 0.5) * 10;
+                const z = (v - 0.5) * 10;
+                const y = Math.sin(x * 2) * Math.cos(z * 2);
+                return { x, y, z };
+            }}
+        };
+
+        // --- 2. Three.js 初始化 ---
+        const container = document.getElementById('canvas-container');
+        
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 10;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        container.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 0.5;
+        controls.enableZoom = true;
+
+        // 后处理
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), CONFIG.bloomStrength, 0.4, 0);
+        
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // 粒子初始化
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(MAX_PARTICLES * 3);
+        const colors = new Float32Array(MAX_PARTICLES * 3);
+        const baseC = new THREE.Color(CONFIG.baseColor);
+
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+            positions[i * 3] = (Math.random() - 0.5) * 15;
+            positions[i * 3 + 1] = (Math.random() - 0.5) * 15;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 15;
+            colors[i * 3] = baseC.r; colors[i * 3 + 1] = baseC.g; colors[i * 3 + 2] = baseC.b;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setDrawRange(0, CONFIG.particleCount);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(16,16,0,16,16,16);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,32,32);
+        const texture = new THREE.CanvasTexture(canvas);
+
+        const material = new THREE.PointsMaterial({
+            size: 0.12, map: texture, blending: THREE.AdditiveBlending,
+            depthWrite: false, transparent: true, vertexColors: true, opacity: 0.8
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- 3. 逻辑更新函数 ---
+        function updateTargetPositions() {
+            const func = SHAPES[CONFIG.shape].func;
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const p = func(i, CONFIG.particleCount);
+                targetPositions[i * 3] = p.x;
+                targetPositions[i * 3 + 1] = p.y;
+                targetPositions[i * 3 + 2] = p.z;
+            }
+            updateColors(); // 形状改变通常影响渐变
+        }
+
+        function updateColors() {
+            const colorArr = geometry.attributes.color.array;
+            const base = new THREE.Color(CONFIG.baseColor);
+            const tempColor = new THREE.Color();
+            const triColors = [new THREE.Color('#ff0055'), new THREE.Color('#00ffff'), new THREE.Color('#ffff00')];
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                let r, g, b;
+                if (CONFIG.colorMode === 'Solid') {
+                    r = base.r; g = base.g; b = base.b;
+                } else if (CONFIG.colorMode === 'Gradient') {
+                    // 使用目标位置计算渐变 (HSL 空间)
+                    const tx = targetPositions[i*3];
+                    const ty = targetPositions[i*3+1];
+                    // 简单的空间映射算法，生成彩虹色
+                    const hue = (Math.sin(tx * 0.2) + Math.cos(ty * 0.2) + 2) / 4; 
+                    tempColor.setHSL(hue % 1, 1.0, 0.6);
+                    r = tempColor.r; g = tempColor.g; b = tempColor.b;
+                } else {
+                    const col = triColors[i % 3];
+                    r = col.r; g = col.g; b = col.b;
+                }
+                colorArr[i*3] = r; colorArr[i*3+1] = g; colorArr[i*3+2] = b;
+            }
+            geometry.attributes.color.needsUpdate = true;
+        }
+
+        // --- 4. UI 事件绑定 ---
+        
+        // 生成形状按钮
+        const shapeGrid = document.getElementById('shape-grid');
+        Object.entries(SHAPES).forEach(([key, val]) => {
+            const btn = document.createElement('button');
+            btn.className = `text-[10px] py-2 rounded-md transition-all duration-200 border ${CONFIG.shape === key ? 'bg-cyan-500 text-black border-cyan-400 font-bold shadow-[0_0_10px_rgba(0,255,255,0.5)]' : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'}`;
+            btn.innerText = val.label;
+            btn.onclick = () => {
+                CONFIG.shape = key;
+                updateTargetPositions();
+                updateShapeButtons();
+            };
+            shapeGrid.appendChild(btn);
+        });
+
+        function updateShapeButtons() {
+            Array.from(shapeGrid.children).forEach((btn, idx) => {
+                const key = Object.keys(SHAPES)[idx];
+                btn.className = `text-[10px] py-2 rounded-md transition-all duration-200 border ${CONFIG.shape === key ? 'bg-cyan-500 text-black border-cyan-400 font-bold shadow-[0_0_10px_rgba(0,255,255,0.5)]' : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'}`;
+            });
+        }
+
+        // 颜色模式按钮
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        modeBtns.forEach(btn => {
+            if(btn.dataset.mode === CONFIG.colorMode) btn.classList.add('bg-white/10', 'text-white', 'border', 'border-white/20');
+            btn.onclick = () => {
+                CONFIG.colorMode = btn.dataset.mode;
+                modeBtns.forEach(b => b.classList.remove('bg-white/10', 'text-white', 'border', 'border-white/20'));
+                btn.classList.add('bg-white/10', 'text-white', 'border', 'border-white/20');
+                updateColors();
+            };
+        });
+
+        // 滑块
+        document.getElementById('count-slider').oninput = (e) => {
+            const val = parseInt(e.target.value);
+            CONFIG.particleCount = val;
+            document.getElementById('count-val').innerText = val.toLocaleString();
+            geometry.setDrawRange(0, val);
+            updateTargetPositions();
+        };
+
+        document.getElementById('bloom-slider').oninput = (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.bloomStrength = val;
+            document.getElementById('bloom-val').innerText = val.toFixed(1);
+            bloomPass.strength = val;
+        };
+
+        document.getElementById('color-picker').oninput = (e) => {
+            CONFIG.baseColor = e.target.value;
+            if(CONFIG.colorMode === 'Solid') updateColors();
+        };
+
+        // UI 显隐逻辑
+        const panel = document.getElementById('control-panel');
+        const toggleBtn = document.getElementById('toggle-ui-btn');
+        const closeBtn = document.getElementById('close-panel-btn');
+
+        function toggleUI(show) {
+            if(show) {
+                panel.classList.remove('hidden-ui');
+                toggleBtn.classList.add('hidden');
+            } else {
+                panel.classList.add('hidden-ui');
+                toggleBtn.classList.remove('hidden');
+            }
+        }
+        closeBtn.onclick = () => toggleUI(false);
+        toggleBtn.onclick = () => toggleUI(true);
+
+        // --- 5. MediaPipe 手势 ---
+        const videoElement = document.getElementById('video-input');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+        const loader = document.getElementById('loader');
+
+        let isLoaded = false;
+
+        function onHandResults(results) {
+            if(!isLoaded && results.multiHandLandmarks) {
+                isLoaded = true;
+                loader.classList.add('opacity-0');
+                setTimeout(() => loader.remove(), 800);
+                panel.classList.remove('hidden-ui'); // 初始显示面板
+            }
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusText.innerText = "已识别手势";
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_currentColor] transition-colors duration-300";
+                
+                const landmarks = results.multiHandLandmarks[0];
+                const p1 = landmarks[4]; 
+                const p2 = landmarks[8]; 
+                const d = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                
+                let targetScale = (d * 5); 
+                targetScale = Math.max(0.2, Math.min(3.0, targetScale));
+                gestureScale += (targetScale - gestureScale) * 0.1;
+            } else {
+                statusText.innerText = "正在寻找手部...";
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_currentColor] transition-colors duration-300";
+                gestureScale += (1.0 - gestureScale) * 0.05;
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        hands.onResults(onHandResults);
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+        
+        cameraUtils.start().catch(e => {
+            console.error(e);
+            statusText.innerText = "摄像头启动失败";
+            loader.classList.add('opacity-0'); // 即使失败也移除遮罩以显示错误信息
+            panel.classList.remove('hidden-ui');
+        });
+
+        // --- 6. 动画循环 ---
+        const clock = new THREE.Clock();
+        updateTargetPositions(); // 初始化位置
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const time = clock.getElapsedTime();
+            controls.update(); // 更新控制器
+
+            const posArr = geometry.attributes.position.array;
+            
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const ix = i * 3;
+                const tx = targetPositions[ix];
+                const ty = targetPositions[ix+1];
+                const tz = targetPositions[ix+2];
+
+                const noise = Math.sin(time * 3 + tx) * 0.05;
+                const scale = gestureScale;
+                
+                const targetX = tx * scale + noise;
+                const targetY = ty * scale + noise;
+                const targetZ = tz * scale + noise;
+
+                posArr[ix] += (targetX - posArr[ix]) * 0.1;
+                posArr[ix+1] += (targetY - posArr[ix+1]) * 0.1;
+                posArr[ix+2] += (targetZ - posArr[ix+2]) * 0.1;
+            }
+            
+            geometry.attributes.position.needsUpdate = true;
+            particles.rotation.y += 0.002 * gestureScale; 
+            
+            composer.render();
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

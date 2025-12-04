@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>闪卡大师 - Flashcard Master</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            /* 背景动画渐变 */
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            
+            /* UI 玻璃质感参数 */
+            --glass-bg: rgba(20, 20, 35, 0.4); /* 更深的UI背景 */
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            
+            /* 字体颜色 */
+            --text-main: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.75);
+            --accent: #00f2fe;
+
+            /* 卡片样式 - 优化辨识度与毛玻璃 */
+            /* 正面：深色半透明，高模糊 */
+            --card-front-bg: rgba(20, 20, 30, 0.75); 
+            /* 背面：深蓝色半透明，高模糊 */
+            --card-back-bg: rgba(20, 40, 60, 0.85);
+            
+            --card-border: rgba(255, 255, 255, 0.2);
+            --card-blur: blur(25px); /* 强力磨砂 */
+
+            --slot-width: 600px;
+            --slot-height: 400px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            outline: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #0f0c29;
+            background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #141e30);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* ---------------- App 容器 ---------------- */
+        .app-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* ---------------- 上传界面 ---------------- */
+        #upload-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(20px);
+            z-index: 200;
+            transition: opacity 0.5s ease;
+        }
+
+        .upload-box {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 3rem;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: var(--glass-shadow);
+            transition: transform 0.3s ease;
+        }
+
+        .upload-box:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .upload-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
+        }
+
+        .upload-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(0, 242, 254, 0.8);
+        }
+
+        input[type="file"] { display: none; }
+
+        /* ---------------- 主界面 ---------------- */
+        #main-interface {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+            position: relative;
+        }
+
+        /* 顶部栏 */
+        .top-bar {
+            width: 90%;
+            max-width: 1000px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 25px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            margin-top: 10px;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .stats { font-size: 1.1rem; font-weight: 300; }
+        .stats b { color: var(--accent); font-weight: 600; }
+
+        .controls-top { display: flex; gap: 15px; align-items: center; }
+
+        .jump-input {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            width: 80px;
+            text-align: center;
+            transition: border 0.3s;
+        }
+        .jump-input:focus { border-color: var(--accent); }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        .icon-btn:hover, .icon-btn.active { color: var(--accent); }
+
+        /* ---------------- CoverFlow 舞台 ---------------- */
+        .stage-container {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* 增加透视深度，让 3D 效果更明显 */
+            perspective: 1500px; 
+            overflow: hidden;
+        }
+
+        /* 每一个卡槽 */
+        .card-slot {
+            position: absolute;
+            width: var(--slot-width);
+            height: var(--slot-height);
+            /* 调整缓动曲线，让移动更顺滑 */
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease, filter 0.6s ease;
+            transform-style: preserve-3d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- Slot States --- */
+        
+        /* 中心当前卡片 */
+        .card-slot.center {
+            /* 稍微拉近 Z 轴，让它比背景更突出 */
+            transform: translateX(0) translateZ(0px) rotateY(0);
+            z-index: 10;
+            opacity: 1;
+            filter: blur(0) brightness(1.1); /* 稍微提亮 */
+            pointer-events: auto;
+        }
+
+        /* 左侧预览 */
+        .card-slot.left {
+            /* 加大旋转角度和后退距离 */
+            transform: translateX(-65%) translateZ(-300px) rotateY(35deg);
+            z-index: 5;
+            opacity: 0.5;
+            filter: blur(4px) brightness(0.8);
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        /* 右侧预览 */
+        .card-slot.right {
+            transform: translateX(65%) translateZ(-300px) rotateY(-35deg);
+            z-index: 5;
+            opacity: 0.5;
+            filter: blur(4px) brightness(0.8);
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        /* 远端隐藏 */
+        .card-slot.hidden-left {
+            transform: translateX(-150%) translateZ(-500px) rotateY(60deg);
+            z-index: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .card-slot.hidden-right {
+            transform: translateX(150%) translateZ(-500px) rotateY(-60deg);
+            z-index: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* ---------------- 卡片本身（负责翻转） ---------------- */
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            /* 优化翻转动画：加入一点点的缩放，让翻转有"飞起来"的感觉 */
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            cursor: pointer;
+            border-radius: 24px;
+        }
+
+        .card-slot.center .flashcard.flipped {
+            /* 翻转时不要只是 rotateY(180deg)，可以加一点 Z 轴位移防止穿模，或者更酷的弧线 */
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 24px;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            
+            /* 核心视觉优化：深色、高模糊、描边 */
+            backdrop-filter: var(--card-blur);
+            -webkit-backdrop-filter: var(--card-blur);
+            border: 1px solid var(--card-border);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05);
+            
+            overflow-y: auto;
+        }
+
+        .card-front {
+            background: var(--card-front-bg);
+            transform: rotateY(0deg); 
+        }
+
+        .card-back {
+            background: var(--card-back-bg);
+            transform: rotateY(180deg);
+            /* 背面字体稍微加粗一点 */
+            font-weight: 500;
+        }
+
+        .card-label {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.6;
+            color: var(--accent);
+            text-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+        }
+
+        .card-content {
+            font-size: 1.8rem;
+            line-height: 1.6;
+            font-weight: 400;
+            /* 关键：保留空格和换行 */
+            white-space: pre-wrap; 
+            width: 100%;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* ---------------- 底部控制 ---------------- */
+        .bottom-section {
+            width: 90%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            z-index: 100;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        .key-hints {
+            display: flex;
+            gap: 20px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            background: rgba(0,0,0,0.3);
+            padding: 8px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .key {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.2);
+            font-family: monospace;
+            margin-right: 5px;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* 滚动条美化 */
+        .card-face::-webkit-scrollbar { width: 6px; }
+        .card-face::-webkit-scrollbar-track { background: transparent; }
+        .card-face::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        .card-face::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            :root {
+                --slot-width: 88vw;
+                --slot-height: 60vh;
+            }
+            .card-content { font-size: 1.3rem; }
+            .key-hints { display: none; }
+            .card-slot.left { transform: translateX(-100%) translateZ(-200px) rotateY(20deg); opacity: 0; }
+            .card-slot.right { transform: translateX(100%) translateZ(-200px) rotateY(-20deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- 上传界面 -->
+        <div id="upload-screen">
+            <div class="upload-box">
+                <i class="fas fa-layer-group fa-4x" style="color: var(--accent); margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(0,242,254,0.5));"></i>
+                <h1>开始学习</h1>
+                <p style="color: var(--text-secondary); margin: 10px 0 20px;">请上传您的 Flashcards (.csv) 文件</p>
+                <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                    <i class="fas fa-upload"></i> 选择文件
+                </button>
+                <input type="file" id="file-input" accept=".csv">
+            </div>
+        </div>
+
+        <!-- 主界面 -->
+        <div id="main-interface">
+            <div class="top-bar">
+                <div class="stats">
+                    <span id="current-index">1</span> / <span id="total-count">0</span>
+                </div>
+                <div class="controls-top">
+                    <input type="number" id="jump-box" class="jump-input" placeholder="Go" min="1">
+                    <button class="icon-btn" id="shuffle-btn" title="随机模式"><i class="fas fa-random"></i></button>
+                    <button class="icon-btn" onclick="resetApp()" title="重新上传"><i class="fas fa-folder-open"></i></button>
+                </div>
+            </div>
+
+            <div class="stage-container" id="stage">
+                <!-- 动态生成 5 个 Slot 以支持循环 -->
+            </div>
+
+            <div class="bottom-section">
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="key-hints">
+                    <span><span class="key">Space</span>翻面</span>
+                    <span><span class="key">Enter/→</span>下一张</span>
+                    <span><span class="key">←</span>上一张</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心数据 ---
+        let cards = [];
+        let originalCards = [];
+        let currentIndex = 0;
+        let isShuffle = false;
+        let fileName = "";
+        
+        // --- 视图配置 ---
+        const SLOT_COUNT = 5; 
+        const slots = []; 
+        
+        // DOM 引用
+        const stage = document.getElementById('stage');
+        const fileInput = document.getElementById('file-input');
+        const mainUI = document.getElementById('main-interface');
+        const uploadScreen = document.getElementById('upload-screen');
+        
+        // 初始化 5 个卡片槽
+        function initSlots() {
+            stage.innerHTML = '';
+            slots.length = 0;
+            
+            for (let i = 0; i < SLOT_COUNT; i++) {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'card-slot';
+                
+                // 内部结构：Flashcard (Front/Back)
+                slotDiv.innerHTML = `
+                    <div class="flashcard">
+                        <div class="card-face card-front">
+                            <div class="card-label">Question</div>
+                            <div class="card-content"></div>
+                        </div>
+                        <div class="card-face card-back">
+                            <div class="card-label" style="color: var(--accent)">Answer</div>
+                            <div class="card-content"></div>
+                        </div>
+                    </div>
+                `;
+                
+                // 点击事件
+                slotDiv.onclick = (e) => handleSlotClick(i);
+                
+                stage.appendChild(slotDiv);
+                slots.push({
+                    el: slotDiv,
+                    cardEl: slotDiv.querySelector('.flashcard'),
+                    qEl: slotDiv.querySelector('.card-front .card-content'),
+                    aEl: slotDiv.querySelector('.card-back .card-content')
+                });
+            }
+        }
+
+        // --- CSV 解析 (加强版：支持引号内换行) ---
+        function parseCSV(text) {
+            const result = [];
+            // 标准化换行符
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            
+            let currentRow = [];
+            let currentCell = '';
+            let inQuote = false;
+            
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const nextChar = text[i + 1];
+                
+                if (inQuote) {
+                    if (char === '"') {
+                        if (nextChar === '"') {
+                            // 两个双引号转义为一个双引号
+                            currentCell += '"';
+                            i++; // 跳过下一个引号
+                        } else {
+                            // 结束引号
+                            inQuote = false;
+                        }
+                    } else {
+                        currentCell += char; // 引号内的内容（包括换行符）都保留
+                    }
+                } else {
+                    if (char === '"') {
+                        inQuote = true;
+                    } else if (char === ',') {
+                        currentRow.push(currentCell.trim());
+                        currentCell = '';
+                    } else if (char === '\n') {
+                        currentRow.push(currentCell.trim());
+                        if (currentRow.length >= 2) {
+                             result.push({ q: currentRow[0], a: currentRow[1] });
+                        }
+                        currentRow = [];
+                        currentCell = '';
+                    } else {
+                        currentCell += char;
+                    }
+                }
+            }
+            // 处理最后一行
+            if (currentCell || currentRow.length > 0) {
+                currentRow.push(currentCell.trim());
+                if (currentRow.length >= 2) {
+                    result.push({ q: currentRow[0], a: currentRow[1] });
+                }
+            }
+            return result;
+        }
+
+        // --- 核心逻辑：渲染 CoverFlow ---
+        function updateView() {
+            // 1. 更新顶部统计和进度条
+            document.getElementById('current-index').textContent = currentIndex + 1;
+            document.getElementById('total-count').textContent = cards.length;
+            const progress = ((currentIndex + 1) / cards.length) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            
+            // 保存进度
+            if (!isShuffle && fileName) {
+                localStorage.setItem(`flashcard_progress_${fileName}`, currentIndex);
+            }
+
+            // 2. 更新 Slot 状态和内容
+            const slotCount = slots.length;
+            
+            slots.forEach((slotObj, slotIndex) => {
+                // 计算距离
+                let dist = slotIndex - (currentIndex % slotCount);
+                if (dist > 2) dist -= slotCount;
+                if (dist < -2) dist += slotCount;
+
+                // 清除旧类
+                slotObj.el.className = 'card-slot';
+                
+                // 添加新类
+                if (dist === 0) slotObj.el.classList.add('center');
+                else if (dist === -1) slotObj.el.classList.add('left');
+                else if (dist === 1) slotObj.el.classList.add('right');
+                else if (dist < -1) slotObj.el.classList.add('hidden-left');
+                else if (dist > 1) slotObj.el.classList.add('hidden-right');
+
+                // 翻转归位
+                if (dist !== 0) {
+                    slotObj.cardEl.classList.remove('flipped');
+                }
+
+                // 填充内容
+                let dataIndex = currentIndex + dist;
+                
+                if (dataIndex >= 0 && dataIndex < cards.length) {
+                    slotObj.el.style.visibility = 'visible';
+                    const cardData = cards[dataIndex];
+                    if (slotObj.qEl.innerText !== cardData.q) {
+                        slotObj.qEl.innerText = cardData.q;
+                        slotObj.aEl.innerText = cardData.a;
+                    }
+                } else {
+                    slotObj.el.style.visibility = 'hidden';
+                }
+            });
+        }
+
+        // --- 交互控制 ---
+        function handleSlotClick(slotIndex) {
+            const slotCount = slots.length;
+            let dist = slotIndex - (currentIndex % slotCount);
+            if (dist > 2) dist -= slotCount;
+            if (dist < -2) dist += slotCount;
+
+            if (dist === 0) {
+                flipCurrent();
+            } else if (dist === -1) {
+                prevCard();
+            } else if (dist === 1) {
+                nextCard();
+            }
+        }
+
+        function flipCurrent() {
+            const currentSlotIndex = currentIndex % slots.length;
+            slots[currentSlotIndex].cardEl.classList.toggle('flipped');
+        }
+
+        function nextCard() {
+            if (currentIndex < cards.length - 1) {
+                currentIndex++;
+                updateView();
+            } else {
+                stage.style.transform = "translateX(-15px)";
+                setTimeout(() => stage.style.transform = "translateX(0)", 150);
+            }
+        }
+
+        function prevCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateView();
+            } else {
+                stage.style.transform = "translateX(15px)";
+                setTimeout(() => stage.style.transform = "translateX(0)", 150);
+            }
+        }
+
+        function jumpToCard() {
+            const input = document.getElementById('jump-box');
+            const val = parseInt(input.value);
+            if (!isNaN(val) && val >= 1 && val <= cards.length) {
+                currentIndex = val - 1;
+                updateView();
+                input.value = '';
+                input.blur();
+            }
+        }
+
+        // --- 初始化流程 ---
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            fileName = file.name;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const text = ev.target.result;
+                const parsed = parseCSV(text);
+                
+                if (parsed.length === 0) { 
+                    alert("无法解析文件或文件为空"); 
+                    return; 
+                }
+                
+                originalCards = parsed;
+                cards = [...originalCards];
+                
+                initSlots();
+                
+                const saved = localStorage.getItem(`flashcard_progress_${fileName}`);
+                if (saved) currentIndex = parseInt(saved);
+                if (currentIndex >= cards.length) currentIndex = 0;
+
+                uploadScreen.style.opacity = 0;
+                setTimeout(() => {
+                    uploadScreen.style.display = 'none';
+                    mainUI.style.display = 'flex';
+                    updateView();
+                }, 500);
+            };
+            reader.readAsText(file);
+        });
+
+        // --- 全局键盘事件 ---
+        document.addEventListener('keydown', (e) => {
+            if (mainUI.style.display === 'none') return;
+            if (document.activeElement.tagName === 'INPUT') {
+                if(e.key === 'Enter') jumpToCard();
+                return;
+            }
+
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    flipCurrent();
+                    break;
+                case 'ArrowRight':
+                case 'Enter':
+                case 'NumpadEnter':
+                    nextCard();
+                    break;
+                case 'ArrowLeft':
+                    prevCard();
+                    break;
+            }
+        });
+
+        // --- 乱序 & 重置 ---
+        document.getElementById('shuffle-btn').addEventListener('click', () => {
+            isShuffle = !isShuffle;
+            document.getElementById('shuffle-btn').classList.toggle('active');
+            if (isShuffle) {
+                for (let i = cards.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cards[i], cards[j]] = [cards[j], cards[i]];
+                }
+                currentIndex = 0;
+            } else {
+                cards = [...originalCards];
+                currentIndex = 0;
+            }
+            // 乱序后清空 DOM 显示，强制刷新
+            slots.forEach(s => { s.qEl.innerText = ''; }); 
+            updateView();
+        });
+
+        function resetApp() {
+            if(confirm("重新上传文件？")) location.reload();
+        }
+
+        // --- 触摸滑动支持 ---
+        let ts = 0;
+        document.addEventListener('touchstart', e => ts = e.touches[0].clientX);
+        document.addEventListener('touchend', e => {
+            let te = e.changedTouches[0].clientX;
+            if (ts - te > 50) nextCard();
+            if (te - ts > 50) prevCard();
+        });
+
+    </script>
+</body>
+</html>
