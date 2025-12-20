@@ -90,6 +90,44 @@
             line-height: 1.5;
         }
 
+        .custom-entry {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .custom-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #fff;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .custom-input:focus {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #00f2fe;
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+        }
+
+        .custom-btn {
+            background: rgba(0, 242, 254, 0.2);
+            border: 1px solid rgba(0, 242, 254, 0.4);
+            border-radius: 8px;
+            padding: 8px 15px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .custom-btn:hover {
+            background: rgba(0, 242, 254, 0.4);
+            transform: scale(1.05);
+        }
+
         .github-link {
             display: inline-block;
             margin-top: 30px;
@@ -137,22 +175,13 @@
                     提供更流畅的交互体验和更好的代码结构。
                 </p>
             </a>
-            
-            <a href="FlashC/flashcard.html" class="app-card">
-                <div class="app-icon">📚</div>
-                <h3 class="app-title">闪卡大师</h3>
+
+            <a href="3BLike/3b1b2.html" class="app-card">
+                <div class="app-icon">📐</div>
+                <h3 class="app-title">矩阵几何直观</h3>
                 <p class="app-description">
-                    交互式闪卡学习系统，支持CSV文件导入，提供流畅的3D卡片切换体验，
-                    帮助您高效记忆和学习。
-                </p>
-            </a>
-            
-            <a href="Lizo/Lizo.html" class="app-card">
-                <div class="app-icon">✨</div>
-                <h3 class="app-title">3D手势粒子系统</h3>
-                <p class="app-description">
-                    基于Three.js的3D粒子交互系统，支持手势控制，
-                    实时响应手部动作，创造炫酷的视觉特效。
+                    3Blue1Brown 风格的交互式线性代数教学，
+                    通过动态可视化直观理解矩阵变换、特征值与二次型。
                 </p>
             </a>
             
@@ -164,7 +193,33 @@
                     带来更丰富的视觉体验。
                 </p>
             </a>
+
+            <div class="app-card" style="cursor: default;">
+                <div class="app-icon">⌨️</div>
+                <h3 class="app-title">快速跳转</h3>
+                <p class="app-description">输入关键词（如 ppt, js2md）直接打开特定页面</p>
+                <div class="custom-entry">
+                    <input type="text" id="quickJumpInput" class="custom-input" placeholder="输入关键词..." onkeydown="if(event.key==='Enter') quickJump()">
+                    <button class="custom-btn" onclick="quickJump()">跳转</button>
+                </div>
+            </div>
         </div>
+
+        <script>
+            function quickJump() {
+                const input = document.getElementById('quickJumpInput').value.trim().toLowerCase();
+                const routes = {
+                    'ppt': 'other/ppt.html',
+                    'js2md': 'other/js2md.html'
+                };
+
+                if (routes[input]) {
+                    window.location.href = routes[input];
+                } else if (input) {
+                    alert('未找到关键词: ' + input);
+                }
+            }
+        </script>
         
         <a href="https://github.com/raymortwinkle/NetAppsMaster" class="github-link" target="_blank">
             📁 查看GitHub仓库

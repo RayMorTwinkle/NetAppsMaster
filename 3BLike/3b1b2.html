@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>矩阵几何直观：3B1B风格交互教学 (V2)</title>
+    
+    <!-- 引入 KaTeX 用于显示漂亮的数学公式 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #050505; /* 纯黑略带灰，护眼 */
+            --text-primary: #f0f0f0;
+            --text-secondary: #a0a0a0;
+            
+            /* 霓虹配色系统 */
+            --color-i: #00ffff; /* 青色 - 基向量 i */
+            --color-j: #ff0055; /* 洋红 - 基向量 j */
+            --color-eig1: #39ff14; /* 荧光绿 - 特征轴 1 */
+            --color-eig2: #ffd700; /* 金色 - 特征轴 2 */
+            --color-circle: #ffffff; /* 单位圆颜色 */
+            --highlight-bg: rgba(255, 255, 255, 0.1);
+            --card-bg: #1a1a1a;
+            --memory-box: #2d2b00; /* 记忆框背景 */
+            --memory-border: #ffd700;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* 布局：左图右文 */
+        .container {
+            display: flex;
+            flex-direction: row-reverse; /* 让文字在右，图在左 (桌面端) */
+        }
+
+        /* 左侧：固定不动的可视化舞台 */
+        .visual-stage {
+            flex: 1.2;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            background: radial-gradient(circle at center, #111 0%, #000 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-right: 2px solid #333;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* 右侧：滚动的教学内容 */
+        .content-scroll {
+            flex: 0.8;
+            background: var(--bg-color);
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 每一个教学段落 */
+        .step-section {
+            min-height: 90vh; /* 每一屏几乎占满 */
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border-bottom: 1px solid #222;
+            transition: opacity 0.3s;
+            opacity: 0.3; /* 未激活时变暗 */
+            filter: blur(1px);
+        }
+
+        .step-section.active {
+            opacity: 1;
+            filter: blur(0);
+        }
+
+        /* 字体排版优化 */
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #fff;
+            border-left: 4px solid var(--color-i);
+            padding-left: 15px;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            color: var(--color-eig2);
+            margin-top: 2rem;
+        }
+
+        p {
+            font-size: 1.1rem;
+            color: #ddd;
+            margin-bottom: 1.2rem;
+        }
+
+        strong { color: #fff; font-weight: 700; }
+        ul { margin-bottom: 1.5rem; }
+        li { margin-bottom: 0.5rem; color: #ccc; }
+
+        /* 颜色文字高亮类 */
+        .c-cyan { color: var(--color-i); font-weight: bold; text-shadow: 0 0 5px var(--color-i); }
+        .c-magenta { color: var(--color-j); font-weight: bold; text-shadow: 0 0 5px var(--color-j); }
+        .c-green { color: var(--color-eig1); font-weight: bold; text-shadow: 0 0 5px var(--color-eig1); }
+        .c-gold { color: var(--color-eig2); font-weight: bold; text-shadow: 0 0 5px var(--color-eig2); }
+
+        /* 记忆外挂盒子 - ADHD Friendly */
+        .memory-box {
+            background: var(--memory-box);
+            border: 1px solid var(--memory-border);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            position: relative;
+        }
+        .memory-box::before {
+            content: "🧠 记忆外挂 / 核心直觉";
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: var(--bg-color);
+            color: var(--memory-border);
+            padding: 0 10px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        /* 视觉元素：网格 */
+        #grid-world {
+            position: relative;
+            width: 0; height: 0; /* 中心点 */
+        }
+
+        .grid-line {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.08);
+            transition: transform 0.8s cubic-bezier(0.2, 0, 0.2, 1);
+        }
+
+        /* 单位圆 */
+        #unit-circle {
+            position: absolute;
+            width: 100px; /* 2 * spacing(50px) */
+            height: 100px;
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            top: -50px; /* Center it */
+            left: -50px;
+            box-sizing: border-box;
+            pointer-events: none;
+            transition: transform 0.8s cubic-bezier(0.2, 0, 0.2, 1);
+        }
+
+        .axis-line {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.6);
+            z-index: 5;
+            transition: transform 0.8s cubic-bezier(0.2, 0, 0.2, 1);
+        }
+
+        /* 向量箭头 */
+        .vector {
+            position: absolute;
+            height: 4px;
+            transform-origin: 0 50%; /* 左侧中心旋转 */
+            z-index: 100;
+            border-radius: 2px;
+            box-shadow: 0 0 15px currentColor;
+            transition: all 0.8s cubic-bezier(0.2, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+        }
+        .vector::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            border: 8px solid transparent;
+            border-left-color: inherit; /* 继承父元素颜色 */
+        }
+        
+        /* 向量文字标签 */
+        .vec-label {
+            position: absolute;
+            right: -25px;
+            top: -20px;
+            color: inherit;
+            font-weight: bold;
+            font-size: 1.2rem;
+            font-family: 'KaTeX_Math', 'Times New Roman', serif;
+        }
+
+        /* 特征向量轴 */
+        .eigen-axis {
+            position: absolute;
+            height: 2px;
+            width: 2000px; /* 足够长 */
+            left: -1000px;
+            top: 0;
+            border-top: 2px dashed;
+            opacity: 0; /* 默认隐藏 */
+            transform-origin: center center;
+            transition: opacity 0.5s, transform 0.8s cubic-bezier(0.2, 0, 0.2, 1);
+            z-index: 2;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .visual-stage { height: 50vh; position: sticky; top: 0; }
+            .content-scroll { flex: 1; }
+            .step-section { min-height: 60vh; padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 左侧：视觉舞台 -->
+    <div class="visual-stage">
+        <div id="grid-world">
+            <!-- 网格线容器 -->
+            <div id="grid-lines-layer">
+                <!-- V2新增：单位圆，它也是网格的一部分，随矩阵变换 -->
+                <div id="unit-circle"></div>
+            </div>
+
+            <!-- 特征轴 (隐藏层) -->
+            <div id="axis-green" class="eigen-axis" style="color: var(--color-eig1); border-color: var(--color-eig1);"></div>
+            <div id="axis-gold" class="eigen-axis" style="color: var(--color-eig2); border-color: var(--color-eig2);"></div>
+
+            <!-- 主坐标轴 -->
+            <div class="axis-line" style="width: 2000px; height: 2px; left: -1000px; top: 0;"></div> <!-- X轴 -->
+            <div class="axis-line" style="width: 2px; height: 2000px; left: 0; top: -1000px;"></div> <!-- Y轴 -->
+
+            <!-- 基向量 -->
+            <div id="vec-i" class="vector" style="width: 100px; color: var(--color-i); background-color: var(--color-i); transform: rotate(0deg);">
+                <span class="vec-label">i</span>
+            </div>
+            <div id="vec-j" class="vector" style="width: 100px; color: var(--color-j); background-color: var(--color-j); transform: rotate(90deg);">
+                <span class="vec-label">j</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：教学内容 -->
+    <div class="content-scroll">
+        
+        <!-- STEP 0 -->
+        <div class="step-section active" data-step="0">
+            <h2>0. 舞台设定：矩阵就是变换</h2>
+            <p>你好！我们不用枯燥的定义，直接看图。</p>
+            <p>左边是一个标准的二维空间。注意中间那个<strong>虚线圆</strong>，它是我们的“单位圆”。</p>
+            <ul>
+                <li><span class="c-cyan">青色箭头 (i)</span>：代表横向基准 $(1, 0)$。</li>
+                <li><span class="c-magenta">洋红箭头 (j)</span>：代表纵向基准 $(0, 1)$。</li>
+            </ul>
+            <p><strong>矩阵是什么？</strong> 矩阵不是一堆数字，它是一个<strong>动词</strong>。它把这两个箭头（以及整个网格和那个圆）拉扯、旋转到新的位置。</p>
+            <div class="memory-box">
+                思考技巧：别看矩阵里的数字，看<strong>网格发生了什么形变</strong>。
+            </div>
+        </div>
+
+        <!-- STEP 1: 正交矩阵 -->
+        <div class="step-section" data-step="1">
+            <h2>1. 正交矩阵 (Orthogonal)</h2>
+            <p>现在，我们施加一个正交矩阵变换：</p>
+            $$ Q = \begin{bmatrix} \cos(45^\circ) & -\sin(45^\circ) \\ \sin(45^\circ) & \cos(45^\circ) \end{bmatrix} $$
+            <p><strong>请盯着左边的动画：</strong></p>
+            <ol>
+                <li>网格旋转了，但是<strong>没有变形</strong>。</li>
+                <li>注意那个<strong>单位圆</strong>：它还在原地转，形状依然是正圆！</li>
+                <li><span class="c-cyan">i</span> 和 <span class="c-magenta">j</span> 依然垂直且长度为1。</li>
+            </ol>
+            <div class="memory-box">
+                <p><strong>🧠 记忆口诀：手机旋转</strong></p>
+                <p>正交矩阵就像你把手机横过来拿。画面内容转了，但屏幕并没有变大变小。</p>
+            </div>
+        </div>
+
+        <!-- STEP 2: 实对称矩阵 -->
+        <div class="step-section" data-step="2">
+            <h2>2. 实对称矩阵 (Symmetric)</h2>
+            <p>好的，复原。现在主角登场：<strong>实对称矩阵</strong>。</p>
+            $$ A = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix} $$
+            <p>这回不一样了！空间被“揉捏”了。</p>
+            <p>但请注意图中出现的两条<strong>虚线</strong>：</p>
+            <ul>
+                <li><span class="c-green">绿色虚线</span>：主拉伸方向。</li>
+                <li><span class="c-gold">金色虚线</span>：次要方向。</li>
+            </ul>
+            <p><strong>奇迹之处：</strong> 虽然空间歪了，但这<strong>两根虚线依然保持垂直</strong>！这就是“实对称”的几何铁律。</p>
+            <div class="memory-box">
+                <p><strong>🧠 记忆口诀：完美的披萨面团</strong></p>
+                <p>实对称矩阵就是把面团沿着两个十字交叉的方向拉开。</p>
+            </div>
+        </div>
+
+        <!-- STEP 3: 相似 - 换个视角 -->
+        <div class="step-section" data-step="3">
+            <h2>3. 相似矩阵：换个头型看世界</h2>
+            <p>公式 $A = P D P^{-1}$ 看起来很吓人？我们来一步步拆解它的<strong>物理意义</strong>。</p>
+            <p>想象上面的拉伸很难描述，因为它是斜着的。如果我们能把头歪过来，是不是就变简单了？</p>
+            <p><strong>第一步 ($P^{-1}$)：旋转对齐</strong></p>
+            <p>看左图！我们将网格<strong>旋转</strong>（应用 $P^{-1}$）。</p>
+            <p>目标：把那根斜着的<span class="c-green">绿色虚线</span>强行转到水平位置。现在，我们进入了一个“新世界”。</p>
+            <div class="memory-box">
+                <p>这一步相当于：<strong>歪头</strong>。把斜着的问题摆正。</p>
+            </div>
+        </div>
+
+        <!-- STEP 4: 相似 - 拉伸 -->
+        <div class="step-section" data-step="4">
+            <h2>4. 相似矩阵：简单的拉伸</h2>
+            <p><strong>第二步 ($D$)：对角矩阵拉伸</strong></p>
+            <p>在现在这个“摆正了”的视角下，处理变换简直太简单了。</p>
+            $$ D = \begin{bmatrix} 3 & 0 \\ 0 & 1 \end{bmatrix} $$
+            <p>看图：我们只需要沿着水平方向（X轴）拉长3倍，垂直方向不动。</p>
+            <div class="memory-box">
+                <p>这一步相当于：<strong>操作</strong>。在摆正的视角下轻松完成任务。</p>
+            </div>
+        </div>
+
+        <!-- STEP 5: 相似 - 复原 -->
+        <div class="step-section" data-step="5">
+            <h2>5. 相似矩阵：回到现实</h2>
+            <p><strong>第三步 ($P$)：旋转复原</strong></p>
+            <p>任务完成，但我们不能一直歪着头。我们需要转回去。</p>
+            <p>看图：我们逆时针转回原来的角度。</p>
+            <p>这就是相似变换 $A = P D P^{-1}$ 的全过程。</p>
+            <div class="memory-box">
+                <p><strong>🧠 终极直觉</strong></p>
+                <p>所谓的“相似”，就是<strong>同一个变换</strong>在<strong>不同坐标系</strong>下的描述。</p>
+            </div>
+        </div>
+
+        <!-- V2 更新部分：性质总结 -->
+        <div class="step-section" data-step="6">
+            <h2>6. 实对称矩阵的三大核心性质</h2>
+            <p>好了，刚才的动画不仅是看个热闹，它对应了三个必须背诵的考点：</p>
+            
+            <h3>① 特征值一定是实数</h3>
+            <p>还记得刚才的拉伸吗？我们只是拉长或缩短，没有把空间“旋”到复平面去。所以 $\lambda$ 必须是实实在在的数字。</p>
+            
+            <h3>② 不同特征值对应的特征向量互相垂直</h3>
+            <p>看图中的 <span class="c-green">绿色轴</span> 和 <span class="c-gold">金色轴</span>。无论矩阵怎么变，只要它是实对称的，这两根轴<strong>永远夹角90度</strong>。</p>
+            <p><strong>题目考法：</strong> 给出两个特征向量 $v_1, v_2$，若对应 $\lambda_1 \neq \lambda_2$，你可以直接写出 $v_1^T v_2 = 0$（内积为0）。</p>
+
+            <h3>③ 必可正交对角化</h3>
+            <p>这是最强的一条：$A = Q \Lambda Q^T$。这里的 $Q$ 就是正交矩阵。意味着任何实对称矩阵，都可以分解为：<strong>旋转 $\to$ 拉伸 $\to$ 反向旋转</strong>。</p>
+
+            <div class="memory-box">
+                <p><strong>🧠 记忆口诀：实、垂、全</strong></p>
+                <p><strong>实</strong>数特征值、向量<strong>垂</strong>直、<strong>全</strong>都能对角化。</p>
+            </div>
+        </div>
+
+        <!-- V2 更新部分：二次型 -->
+        <div class="step-section" data-step="7">
+            <h2>7. 考点应用：二次型 (Quadratic Form)</h2>
+            <p>这是考试最爱考的题目：<strong>“化二次型为标准型”</strong>。</p>
+            <p>例子：$f(x,y) = 2x^2 + 2xy + 2y^2 = 1$ 是什么形状？</p>
+            <p><strong>看左边的图！</strong></p>
+            <ul>
+                <li>原本的 $x^2 + y^2 = 1$ 是那个<strong>虚线圆</strong>。</li>
+                <li>经过矩阵变换后，那个圆变成了<strong>椭圆</strong>。</li>
+                <li>那个讨厌的 $2xy$ (交叉项)，就是导致椭圆<strong>倾斜</strong>的原因。</li>
+            </ul>
+            <p><strong>解题本质：</strong> 我们找特征值和特征向量，就是为了找到那根 <span class="c-green">绿色的轴</span> 和 <span class="c-gold">金色的轴</span>。</p>
+            <p>一旦找到了轴，我们建立新坐标系，在这个新坐标系里，椭圆是“正”的（没有交叉项）。</p>
+            <div class="memory-box">
+                <p><strong>🧠 直觉</strong></p>
+                <p>做二次型题目，就是在<strong>把歪掉的椭圆摆正</strong>。</p>
+                <p>$\lambda$ 的大小决定了椭圆的长短半轴。</p>
+            </div>
+        </div>
+
+        <!-- V2 更新部分：解题策略 -->
+        <div class="step-section" data-step="8">
+            <h2>8. 考试解题四步走</h2>
+            <p>遇到题目：<em>“已知 A 是实对称矩阵，求正交矩阵 Q 使得...”</em>，请按此流程操作：</p>
+            
+            <ul>
+                <li><strong>Step 1: 求特征值</strong> <br> 计算行列式 $|\lambda E - A| = 0$。</li>
+                <li><strong>Step 2: 求特征向量</strong> <br> 解方程 $(A - \lambda E)x = 0$。</li>
+                <li><strong>Step 3: 正交化 (关键!)</strong> <br> 如果有重根（比如两个特征值都是2），你求出的两个向量可能不垂直。这时必须用 <strong>施密特正交化 (Gram-Schmidt)</strong> 强制让它们垂直。 <br> *注：不同特征值的向量已经自动垂直，不用管。*</li>
+                <li><strong>Step 4: 单位化</strong> <br> 把向量长度变成1。把它们拼起来，就是矩阵 $Q$。</li>
+            </ul>
+
+            <div class="memory-box">
+                <p><strong>⚠️ 易错点警示</strong></p>
+                <p>普通矩阵对角化不需要单位化，也不需要正交化。但题目只要出现<strong>“实对称”</strong>或<strong>“正交变换”</strong>字样，必须执行 Step 3 和 Step 4！</p>
+            </div>
+        </div>
+
+        <div style="height: 50vh;"></div>
+    </div>
+</div>
+
+<script>
+    // 渲染数学公式
+    document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.body, {
+            delimiters: [
+                {left: "$$", right: "$$", display: true},
+                {left: "$", right: "$", display: false}
+            ]
+        });
+        
+        createGrid();
+        // 初始触发一次
+        updateVisual("0");
+    });
+
+    // --- 可视化逻辑 ---
+    
+    const gridLayer = document.getElementById('grid-lines-layer');
+    const vecI = document.getElementById('vec-i');
+    const vecJ = document.getElementById('vec-j');
+    const axisGreen = document.getElementById('axis-green');
+    const axisGold = document.getElementById('axis-gold');
+    const gridWorld = document.getElementById('grid-world');
+    const unitCircle = document.getElementById('unit-circle');
+
+    // 1. 创建网格背景
+    function createGrid() {
+        // 我们生成一个足够大的网格，以便旋转时不会露馅
+        const range = 20; 
+        const spacing = 50; // px
+        
+        for (let i = -range; i <= range; i++) {
+            // 垂直线 (代表 x = i)
+            let v = document.createElement('div');
+            v.className = 'grid-line';
+            v.style.width = '1px';
+            v.style.height = (range * 2 * spacing) + 'px';
+            v.style.left = (i * spacing) + 'px';
+            v.style.top = (-range * spacing) + 'px';
+            gridLayer.appendChild(v);
+
+            // 水平线 (代表 y = i)
+            let h = document.createElement('div');
+            h.className = 'grid-line';
+            h.style.height = '1px';
+            h.style.width = (range * 2 * spacing) + 'px';
+            h.style.top = (i * spacing * -1) + 'px'; // 注意Y轴翻转，正数向上，但在HTML absolute top中，负数才向上
+            h.style.left = (-range * spacing) + 'px';
+            gridLayer.appendChild(h);
+        }
+    }
+
+    // 2. 矩阵变换核心函数
+    gridWorld.style.transform = "scaleY(-1)";
+    document.querySelectorAll('.vec-label').forEach(el => el.style.transform = "scaleY(-1)");
+
+    function applyTransform(m11, m12, m21, m22) {
+        // 应用于网格线层 (包含单位圆)
+        gridLayer.style.transform = `matrix(${m11}, ${m21}, ${m12}, ${m22}, 0, 0)`;
+
+        // 重新计算向量 i (1, 0) 的变换后位置
+        const lenI = Math.sqrt(m11*m11 + m21*m21);
+        const angI = Math.atan2(m21, m11); // rad
+        
+        vecI.style.width = (lenI * 50) + 'px'; // 50 is unit scale
+        vecI.style.transform = `rotate(${angI}rad)`;
+
+        // 重新计算向量 j (0, 1) 的变换后位置
+        const lenJ = Math.sqrt(m12*m12 + m22*m22);
+        const angJ = Math.atan2(m22, m12);
+
+        vecJ.style.width = (lenJ * 50) + 'px';
+        vecJ.style.transform = `rotate(${angJ}rad)`;
+    }
+
+    // 设置特征轴的状态
+    function setEigenAxes(show, rotation1, rotation2, highlight) {
+        if (!show) {
+            axisGreen.style.opacity = 0;
+            axisGold.style.opacity = 0;
+        } else {
+            axisGreen.style.opacity = highlight ? 1 : 0.4;
+            axisGold.style.opacity = highlight ? 1 : 0.4;
+            axisGreen.style.transform = `rotate(${rotation1}deg)`;
+            axisGold.style.transform = `rotate(${rotation2}deg)`;
+            
+            // 如果高亮，加粗显示
+            if(highlight) {
+                axisGreen.style.borderTopStyle = "solid";
+                axisGreen.style.boxShadow = "0 0 10px var(--color-eig1)";
+                axisGold.style.borderTopStyle = "solid";
+                axisGold.style.boxShadow = "0 0 10px var(--color-eig2)";
+            } else {
+                axisGreen.style.borderTopStyle = "dashed";
+                axisGreen.style.boxShadow = "none";
+                axisGold.style.borderTopStyle = "dashed";
+                axisGold.style.boxShadow = "none";
+            }
+        }
+    }
+
+    // 3. 步骤控制器
+    const steps = {
+        "0": () => { // Identity
+            applyTransform(1, 0, 0, 1);
+            setEigenAxes(false, 0, 0);
+        },
+        "1": () => { // Orthogonal Rotation
+            const c = 0.707, s = 0.707;
+            applyTransform(c, -s, s, c);
+            setEigenAxes(false, 0, 0);
+        },
+        "2": () => { // Symmetric
+            applyTransform(2, 1, 1, 2);
+            setEigenAxes(true, 45, 135); 
+        },
+        "3": () => { // P^-1
+            const angle = -45 * Math.PI / 180;
+            const c = Math.cos(angle), s = Math.sin(angle);
+            applyTransform(c, -s, s, c);
+            setEigenAxes(true, 0, 90);
+        },
+        "4": () => { // D
+            applyTransform(3, 0, 0, 1);
+            setEigenAxes(true, 0, 90);
+        },
+        "5": () => { // P
+            applyTransform(2, 1, 1, 2);
+            setEigenAxes(true, 45, 135);
+        },
+        "6": () => { // Properties Highlight
+            // 保持变换状态，但高亮轴
+            applyTransform(2, 1, 1, 2);
+            setEigenAxes(true, 45, 135, true); // Highlighting
+        },
+        "7": () => { // Quadratic Form
+            // 这里我们为了强调椭圆，可以把网格线淡化，或者保持现状
+            // 重点是让用户看那个变形成椭圆的圆
+            applyTransform(2, 1, 1, 2);
+            setEigenAxes(true, 45, 135, true);
+        },
+        "8": () => { // Exam Strategy
+            // 复原到 Identity，让用户冷静思考算法
+            applyTransform(1, 0, 0, 1);
+            setEigenAxes(false, 0, 0);
+        }
+    };
+
+    function updateVisual(stepIndex) {
+        if (steps[stepIndex]) {
+            steps[stepIndex]();
+        }
+    }
+
+    // 4. 滚动监听
+    const sections = document.querySelectorAll('.step-section');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                sections.forEach(s => s.classList.remove('active'));
+                entry.target.classList.add('active');
+                const step = entry.target.dataset.step;
+                updateVisual(step);
+            }
+        });
+    }, {
+        threshold: 0.6
+    });
+
+    sections.forEach(s => observer.observe(s));
+
+</script>
+
+</body>
+</html>

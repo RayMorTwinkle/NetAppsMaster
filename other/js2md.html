@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON 字幕转纯文本工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .drop-zone { transition: all 0.3s ease; }
+        .drop-zone.drag-over { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-12 px-4">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-10">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">JSON 字幕转纯文本工具</h1>
+            <p class="text-gray-600">支持批量处理，自动提取内容，导出为 .txt 文件</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <!-- Upload Area -->
+            <div id="dropZone" class="drop-zone border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50">
+                <input type="file" id="fileInput" multiple accept=".json" class="hidden">
+                <div class="flex flex-col items-center">
+                    <svg class="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-lg font-medium text-gray-700">拖拽 JSON 文件到此处</p>
+                    <p class="text-sm text-gray-500 mt-1">或点击选择电脑中的文件（支持多选）</p>
+                </div>
+            </div>
+
+            <!-- Action Bar (Hidden initially) -->
+            <div id="actionBar" class="mt-8 hidden flex items-center justify-between border-b pb-4">
+                <h2 class="text-lg font-semibold text-gray-800">待处理队列 (<span id="fileCount">0</span>)</h2>
+                <div class="space-x-2">
+                    <button id="clearBtn" class="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition">清空列表</button>
+                    <button id="downloadAllBtn" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition">打包下载全部 (.zip)</button>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <ul id="fileList" class="mt-4 divide-y divide-gray-100">
+                <!-- Items will be injected here -->
+            </ul>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="mt-8 text-center py-10 text-gray-400">
+                暂无上传文件
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-8 text-center text-sm text-gray-500">
+            仅在本地浏览器处理，文件不会上传到任何服务器
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const actionBar = document.getElementById('actionBar');
+        const fileCountSpan = document.getElementById('fileCount');
+        const emptyState = document.getElementById('emptyState');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
+        let processedFiles = [];
+
+        // Drag & Drop Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        async function handleFiles(files) {
+            const jsonFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.json'));
+            
+            if (jsonFiles.length === 0) return;
+
+            for (const file of jsonFiles) {
+                try {
+                    const text = await readFileAsText(file);
+                    const json = JSON.parse(text);
+                    
+                    // 核心转换逻辑：提取 content 字段
+                    // 兼容数组格式或包含 data 属性的对象格式
+                    const data = Array.isArray(json) ? json : (json.data || []);
+                    const content = data.map(item => item.content || '').join('\n');
+                    
+                    const result = {
+                        name: file.name.replace(/\.json$/i, ''),
+                        content: content,
+                        status: 'success'
+                    };
+                    
+                    processedFiles.push(result);
+                    renderFileItem(result);
+                } catch (err) {
+                    console.error('解析失败:', file.name, err);
+                    renderFileItem({ name: file.name, status: 'error' });
+                }
+            }
+            updateUI();
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        function renderFileItem(item) {
+            const li = document.createElement('li');
+            li.className = "flex items-center justify-between py-4 animate-in fade-in duration-300";
+            
+            const isError = item.status === 'error';
+            
+            li.innerHTML = `
+                <div class="flex items-center space-x-4 overflow-hidden">
+                    <div class="p-2 ${isError ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'} rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <div class="truncate">
+                        <p class="text-sm font-medium text-gray-900 truncate">${item.name}.txt</p>
+                        <p class="text-xs text-gray-500">${isError ? '解析失败，请检查格式' : '转换成功'}</p>
+                    </div>
+                </div>
+                ${!isError ? `
+                    <button onclick="downloadSingle('${item.name}', \`${item.content.replace(/`/g, '\\`')}\`)" class="p-2 text-gray-400 hover:text-blue-600 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                    </button>
+                ` : ''}
+            `;
+            fileList.appendChild(li);
+        }
+
+        function updateUI() {
+            const hasFiles = processedFiles.length > 0;
+            actionBar.classList.toggle('hidden', !hasFiles);
+            emptyState.classList.toggle('hidden', hasFiles);
+            fileCountSpan.textContent = processedFiles.length;
+        }
+
+        // 单个下载
+        window.downloadSingle = (name, content) => {
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        // 打包下载全部
+        downloadAllBtn.addEventListener('click', async () => {
+            const zip = new JSZip();
+            const validFiles = processedFiles.filter(f => f.status === 'success');
+            
+            if (validFiles.length === 0) return;
+
+            validFiles.forEach(file => {
+                zip.file(`${file.name}.txt`, file.content);
+            });
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `subtitles_export_${new Date().getTime()}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            processedFiles = [];
+            fileList.innerHTML = '';
+            fileInput.value = '';
+            updateUI();
+        });
+    </script>
+</body>
+</html>

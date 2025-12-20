@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>东亚人口：危机与转折</title>
+    <!-- 引入中文字体和图标库 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        /* --- 1. 全局重置与基础样式 --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background-color: #0f172a; /* 深色背景，沉浸式体验 */
+            font-family: 'Noto Sans SC', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* --- 2. 幻灯片容器 (16:9 比例) --- */
+        #deck-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+            background-color: #ffffff;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            border-radius: 4px;
+        }
+
+        /* --- 3. 单页幻灯片样式 --- */
+        .slide {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 60px 80px;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(50px);
+            transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1); /* 平滑动画 */
+            background: white;
+            z-index: 1;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+            z-index: 10;
+        }
+
+        /* --- 4. 排版元素 --- */
+        h1, h2, h3 {
+            font-family: 'Noto Serif SC', serif;
+            color: #1e293b;
+        }
+
+        h2.slide-title {
+            font-size: 42px;
+            color: #0f172a;
+            margin-bottom: 40px;
+            border-left: 8px solid #ef4444; /* 红色强调线 */
+            padding-left: 20px;
+            line-height: 1.2;
+        }
+
+        p, li {
+            font-size: 20px;
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        
+        strong { color: #b91c1c; font-weight: 700; } /* 重点文字设为深红 */
+
+        /* --- 5. 布局组件 --- */
+        .layout-title-center {
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+        }
+        .layout-title-center h1 { color: white; font-size: 64px; margin-bottom: 24px; text-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .layout-title-center p { color: #cbd5e1; font-size: 26px; text-align: center; }
+
+        .layout-grid-2 {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr; /* 左文右图 */
+            gap: 60px;
+            height: 100%;
+        }
+
+        .layout-grid-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 10px;
+        }
+
+        .card {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 25px;
+            border-radius: 0 8px 8px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .card-title { font-size: 22px; font-weight: bold; color: #1e40af; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .card-text { font-size: 18px; color: #334155; }
+
+        .img-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            background-color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .img-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* 统计数字样式 */
+        .stat-row {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 40px;
+        }
+        .stat-item { text-align: center; }
+        .stat-num { font-size: 64px; font-weight: 900; color: #b91c1c; font-family: 'Noto Serif SC'; line-height: 1; }
+        .stat-desc { font-size: 18px; color: #64748b; margin-top: 10px; font-weight: 500; }
+
+        /* --- 6. 控制按钮 --- */
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+        .btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .btn:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+
+    </style>
+</head>
+<body>
+
+    <div id="deck-container">
+
+        <!-- Slide 1: 封面 -->
+        <div class="slide active layout-title-center" id="slide-1">
+            <h1 style="border-left: none;">东亚人口：危机与机遇</h1>
+            <p style="font-family: 'Noto Serif SC'; font-style: italic;">从日韩的镜鉴到中国独特的现代化之路</p>
+            <div style="margin-top: 60px; font-size: 16px; opacity: 0.7; border-top: 1px solid rgba(255,255,255,0.3); padding-top: 20px;">
+                <i class="fa-solid fa-keyboard"></i> 使用键盘方向键切换 | F11 全屏体验
+            </div>
+        </div>
+
+        <!-- Slide 2: 引入 - 矛盾与悖论 (上) -->
+        <div class="slide" id="slide-2">
+            <h2 class="slide-title">引言：东亚城市的繁荣与阴影</h2>
+            <div style="display: flex; flex-direction: column; height: 100%;">
+                <p style="font-size: 24px; margin-bottom: 30px;">当我们凝视东京、首尔或上海时，我们看到了什么？是极致的效率与文明，还是隐秘的崩溃？</p>
+                <div class="layout-grid-cards">
+                    <div class="card">
+                        <div class="card-title"><i class="fa-solid fa-heart-pulse"></i> 长寿 vs. 负担</div>
+                        <p class="card-text">东亚拥有<strong>全球最长的预期寿命</strong>，彰显了极高的社会安定与医疗水平；但这里也是<strong>全球最老的社会</strong>，年轻人背负着前所未有的赡养重压。</p>
+                    </div>
+                    <div class="card" style="border-left-color: #ef4444;">
+                        <div class="card-title"><i class="fa-solid fa-hand-holding-dollar"></i> 福利 vs. 债务</div>
+                        <p class="card-text">高额的社会福利体现了人文关怀，但在经济下行期，这成为了国家财政的<strong>巨大包袱</strong>，可能诱发系统性的经济风险。</p>
+                    </div>
+                    <div class="card" style="border-left-color: #10b981;">
+                        <div class="card-title"><i class="fa-solid fa-person-dress"></i> 平权 vs. 生育</div>
+                        <p class="card-text">女性受教育程度与职场参与度大幅提升，是文明的进步；但在缺乏支持的体系下，这迫使女性在工作与家庭间做单选，直接导致<strong>生育率雪崩</strong>。</p>
+                    </div>
+                    <div class="card" style="border-left-color: #f59e0b;">
+                        <div class="card-title"><i class="fa-solid fa-city"></i> 城市化 vs. 空心化</div>
+                        <p class="card-text">大城市虹吸人口推动经济潜力，但与此同时，郊区和乡村出现<strong>"鬼城"与空巢老人</strong>，人口分布极度失衡。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: 历史 - 日本的崛起 (人口浪潮节选) -->
+        <div class="slide" id="slide-3">
+            <h2 class="slide-title">历史回响：日本的崛起公式</h2>
+            <div class="layout-grid-2">
+                <div>
+                    <h3 style="margin-bottom: 20px; font-size: 28px; color: #334155;">1905年的震撼</h3>
+                    <p>当24岁的俄国水兵诺维科夫在对马海峡看到日本舰队时，他见证了历史的转折。日本不仅赢得了日俄战争，更重要的是，它是<strong>第一个摆脱马尔萨斯陷阱的非欧洲国家</strong>。</p>
+                    <ul style="margin-left: 20px; margin-top: 20px;">
+                        <li><strong>人口红利初期：</strong> 明治维新后，人口增长与工业化同步，为帝国扩张提供了人力与财力基础。</li>
+                        <li><strong>双刃剑：</strong> 正是这种人口与工业结合的力量，将日本推向了侵略扩张的道路，同时也埋下了后来老龄化的伏笔。</li>
+                    </ul>
+                </div>
+                <div class="img-container">
+                    <img src="http://googleusercontent.com/image_collection/image_retrieval/11794553316025531405" alt="明治时期的日本工业化或海军插图">
+                    <!-- Placeholder: Japanese naval history or industrialization -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: 现状 - 日本的教训 -->
+        <div class="slide" id="slide-4">
+            <h2 class="slide-title">先行者的困境：当富裕遇上衰老</h2>
+            <div class="layout-grid-2">
+                <div class="img-container">
+                    <img src="http://googleusercontent.com/image_collection/image_retrieval/9719001375990547775" alt="日本老龄化社会的街道或空置房屋">
+                    <!-- Placeholder: Aging Japan, empty streets or elderly care -->
+                </div>
+                <div>
+                    <p>日本展示了东亚人口转型的终局图景：<strong>并未因人口减少而崩溃，但失去了活力。</strong></p>
+                    <div class="stat-row" style="flex-direction: column; gap: 30px; margin-top: 20px;">
+                        <div style="text-align: left;">
+                            <span class="stat-num" style="font-size: 48px;">46+</span>
+                            <span class="stat-desc" style="display:block;">年龄中位数 (世界最高梯队)</span>
+                        </div>
+                        <div style="text-align: left;">
+                            <span class="stat-num" style="font-size: 48px;">250%</span>
+                            <span class="stat-desc" style="display:block;">政府债务占GDP比例 (经合组织最高)</span>
+                        </div>
+                        <div style="text-align: left;">
+                            <span class="stat-num" style="font-size: 48px;">800万</span>
+                            <span class="stat-desc" style="display:block;">空置房屋数量 (郊区"底特律化")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: 中国 - 规模与速度 -->
+        <div class="slide" id="slide-5">
+            <h2 class="slide-title">中国：被压缩的人口转型</h2>
+            <div style="display: flex; gap: 40px; align-items: center; height: 100%;">
+                <div style="flex: 1;">
+                    <p>中国的人口史是世界历史上最壮观的章节。从1950年代的年增长率3%，到20世纪末的急剧刹车。</p>
+                    <div class="card" style="margin-top: 30px; background: #fff1f2; border-left-color: #be123c;">
+                        <div class="card-title">关键洞察：独生子女政策是否是唯一原因？</div>
+                        <p class="card-text" style="font-size: 16px;">
+                            虽然政策执行严格，但数据表明，在政策实施前十年，生育率已从6降至3。对比<strong>台湾地区和韩国</strong>（无强制政策），其生育率下降曲线惊人相似。这表明<strong>现代化、教育和经济发展</strong>才是生育率下降的根本推手。
+                        </p>
+                    </div>
+                </div>
+                <div style="flex: 1; height: 100%;">
+                   <!-- Chart visualization via CSS -->
+                   <div style="background: #f1f5f9; padding: 30px; border-radius: 12px; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                        <h3 style="text-align: center; margin-bottom: 30px;">进入深度老龄化所需时间</h3>
+                        <div style="margin-bottom: 20px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>🇫🇷 法国</span> <span>115年</span></div>
+                            <div style="width: 100%; background: #cbd5e1; height: 20px; border-radius: 10px;"><div style="width: 100%; background: #64748b; height: 100%; border-radius: 10px;"></div></div>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>🇺🇸 美国</span> <span>69年</span></div>
+                            <div style="width: 100%; background: #cbd5e1; height: 20px; border-radius: 10px;"><div style="width: 60%; background: #3b82f6; height: 100%; border-radius: 10px;"></div></div>
+                        </div>
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:bold; color: #b91c1c;"><span>🇨🇳 中国</span> <span>~25年</span></div>
+                            <div style="width: 100%; background: #cbd5e1; height: 20px; border-radius: 10px;"><div style="width: 22%; background: #ef4444; height: 100%; border-radius: 10px;"></div></div>
+                        </div>
+                        <p style="margin-top: 30px; font-size: 14px; color: #64748b; text-align: center;">"未富先老"：中国在达到高收入水平前，就已面临西方发达国家的老龄化挑战。</p>
+                   </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: 结构性隐忧 -->
+        <div class="slide" id="slide-6">
+            <h2 class="slide-title">结构性隐忧：性别与家庭</h2>
+            <div class="layout-grid-2">
+                <div class="img-container">
+                    <img src="http://googleusercontent.com/image_collection/image_retrieval/13317075677934415449" alt="中国现代家庭或城市公园的老人">
+                    <!-- Placeholder: Modern Chinese family or elderly -->
+                </div>
+                <div>
+                    <ul style="font-size: 22px;">
+                        <li style="margin-bottom: 30px;">
+                            <strong>性别失衡 (120:100)：</strong><br>
+                            独生子女政策叠加传统观念，导致严重的性别比例失调。这不仅挤压了婚姻市场，更导致未来人口更替能力的永久性缺损。
+                        </li>
+                        <li style="margin-bottom: 30px;">
+                            <strong>"4-2-1" 家庭结构：</strong><br>
+                            倒金字塔式的养老压力：一对夫妻需赡养四位老人并抚养一个孩子。家庭抗风险能力变得极度脆弱。
+                        </li>
+                        <li>
+                            <strong>劳动力萎缩：</strong><br>
+                            人口红利消退，劳动力供给减少。未来的经济增长必须依靠<strong>全要素生产率</strong>的提升，而非廉价劳动力的无限供给。
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: 结语 - 中国方案 -->
+        <div class="slide" id="slide-7">
+            <h2 class="slide-title" style="border-color: #3b82f6;">结语：走出自己的路</h2>
+            <div style="background: linear-gradient(to right, #f8fafc, #f1f5f9); padding: 40px; border-radius: 12px; height: 75%; display: flex; flex-direction: column; justify-content: center;">
+                <p style="font-size: 26px; font-weight: bold; color: #1e3a8a; margin-bottom: 30px;">我们不必重蹈日韩覆辙。</p>
+                <p>中国的国情要求我们必须正视人口规律，但也要利用体制优势进行规划。</p>
+                <hr style="border: 1px dashed #cbd5e1; margin: 20px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 20px;">
+                    <div>
+                        <h3 style="color: #b91c1c; margin-bottom: 10px;">避免陷阱</h3>
+                        <p style="font-size: 18px;">通过政策干预降低育儿成本，避免出现像韩国那样的极端低生育率；解决城乡养老资源不均的问题。</p>
+                    </div>
+                    <div>
+                        <h3 style="color: #15803d; margin-bottom: 10px;">寻找新红利</h3>
+                        <p style="font-size: 18px;">从追求人口数量转向<strong>人口质量</strong>。利用庞大的受过高等教育的人才库，实现从"人口红利"到<strong>"人才红利"</strong>的转型。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: 结束页 -->
+        <div class="slide layout-title-center" id="slide-8">
+            <div style="text-align: center;">
+                <i class="fa-regular fa-comments" style="font-size: 80px; color: #94a3b8; margin-bottom: 30px;"></i>
+                <h1>Q & A</h1>
+                <p>感谢聆听</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 控制按钮区域 -->
+    <div class="controls">
+        <button class="btn" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一页</button>
+        <button class="btn" onclick="toggleFullScreen()"><i class="fa-solid fa-expand"></i> 全屏演示</button>
+        <button class="btn" onclick="nextSlide()">下一页 <i class="fa-solid fa-chevron-right"></i></button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 8;
+        const container = document.getElementById('deck-container');
+
+        function updateSlides() {
+            // 移除所有 active 类
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            // 添加 active 到当前页
+            document.getElementById(`slide-${currentSlide}`).classList.add('active');
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlides();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                updateSlides();
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                if (container.requestFullscreen) container.requestFullscreen();
+                else if (container.mozRequestFullScreen) container.mozRequestFullScreen();
+                else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+                else if (container.msRequestFullscreen) container.msRequestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        // 键盘监听
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+
+    </script>
+</body>
+</html>
